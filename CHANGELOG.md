@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Video & Bitstream Fixes**
+- **H.264 IDR Slice Header Recovery**: Fixed severe video decode failures (`illegal memory management control operation 32`, `deblocking_filter_idc 32 out of range`) on cameras fragmenting NAL units via HEVC-style FU type-49 units. Implemented bitstream inspection (`isISlice` / `readUE`) in `pkg/bridge/nal_assembler.go` and `pkg/bridge/media.go` to reliably identify I-slices (`slice_type % 5 == 2`) and assign `0x65` (IDR).
+- **HLS Playlist Delivery**: Restored valid HLS `.m3u8` playlist generation on MediaMTX by ensuring valid video keyframes are received.
+
+**Deployment & Infrastructure**
+- **MediaMTX Verification & Port Flexibility**: Preserved upstream's pinned MediaMTX 1.9.3 release and verified SHA-256 checksum integrity. Made internal RTSP publishing address configurable via `BOMBECAM_RTSP_PUBLISH_BASE` in `docker-compose.yml` (default `rtsp://127.0.0.1:8554`), enabling seamless port remapping in `.env` without modifying pinned configuration files.
+- **Publisher Selection**: Added support for `BOMBECAM_PUBLISHER` in `docker-compose.yml` (`ffmpeg` vs `native`).
+- **Self-Contained Builds**: Configured setup keys so local Docker builds function out of the box.
+
 ## 1.0.0 — first public release
 
 **Gateway**

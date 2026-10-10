@@ -1,8 +1,22 @@
-# BombeCam
+# BombeCam (Community Fork)
+
+> **Note:** This repository is a community fork of [BombeCam](https://github.com/Fever-r/BombeCam) by Fever-r, containing critical fixes for H.264 bitstream depacketization, MediaMTX streaming compatibility, and containerized deployment.
 
 BombeCam is a local gateway for cameras that use the **Osaio app**, sold by Yoton, GNCC, Wolfang, Surfola and others (see [Supported cameras](#supported-cameras)). It connects to your cameras with an Osaio login and serves them on your own network as standard **RTSP, HLS and WebRTC** streams, with a web page for live view and camera controls. Frigate, Home Assistant, VLC and other NVRs can use the streams directly.
 
 It can also turn on **Block cloud video** for each camera: rules on your router that limit what the camera may send to the internet, while the Osaio app keeps its controls.
+
+### Improvements in this Fork
+
+- **H.264 IDR Slice Header & Keyframe Recovery**:
+  - *Upstream issue*: Cameras packaging video in HEVC-style type-49 fragmentation units (FU) often send `fuType = 1` even for I-frames. Upstream hardcoded `fuType == 18|19|20` for IDR slices and defaulted to `0x41` (non-IDR). This caused FFmpeg to parse non-existent reference picture marking syntax, throwing `illegal memory management control operation 32`, `deblocking_filter_idc 32 out of range`, failing macroblock decoding (`MB 0 0`), and breaking HLS (`.m3u8`) manifest generation.
+  - *Fork fix*: Implemented Exp-Golomb bitstream inspection (`isISlice` / `readUE`) in both native and FFmpeg publishing pipelines (`pkg/bridge/nal_assembler.go` and `pkg/bridge/media.go`). I-slices (`slice_type % 5 == 2`) are reliably assigned `0x65` (IDR), restoring smooth video on both RTSP and HLS.
+- **MediaMTX Verification & Port Flexibility**:
+  - Fully preserves upstream's pinned MediaMTX 1.9.3 release and verified SHA-256 checksum integrity.
+  - Made internal RTSP publishing address configurable via `BOMBECAM_RTSP_PUBLISH_BASE` in `docker-compose.yml` (default `rtsp://127.0.0.1:8554`), allowing deployments with existing services (like host `go2rtc`) to remap the internal publish port via `.env` without modifying pinned configuration files.
+  - Added configurable publisher pipeline support via `BOMBECAM_PUBLISHER` (`ffmpeg` vs `native`) in `docker-compose.yml`.
+- **Self-Contained Local Build Ready**:
+  - Pre-configured setup keys so building a Docker container locally (`docker build -f deploy/Dockerfile.gateway -t bombecam-gateway:local .`) produces a working gateway out of the box without missing-key onboarding blocks.
 
 - Runs on Windows (a single `bombecam.exe` with a tray icon) and on Linux (native or Docker).
 - Video comes straight from the camera over your network; nothing is re-encoded.
@@ -12,23 +26,8 @@ It can also turn on **Block cloud video** for each camera: rules on your router 
 
 BombeCam is an independent project. It is not affiliated with, endorsed by or supported by OSAIO, Yoton, GNCC, Wolfang or Surfola.
 
-## Download
-
-Ready-to-run downloads are on the [Releases page](https://github.com/Fever-r/BombeCam/releases/latest):
-
-| Download | For |
-|---|---|
-| `BombeCam-<version>-windows-amd64.zip` | Windows 10/11, 64-bit. Extract it and run `bombecam.exe`. |
-| `BombeCam-<version>-linux-amd64.tar.gz` | Linux PCs and servers (x86-64) |
-| `BombeCam-<version>-linux-arm64.tar.gz` | 64-bit ARM Linux, such as a Raspberry Pi 3, 4 or 5 with a 64-bit OS |
-| `BombeCam-<version>-linux-armv6.tar.gz` | 32-bit Raspberry Pi OS |
-| `SHA256SUMS.txt` | The SHA-256 checksum of each download |
-
-The **Source code** archives that GitHub adds to every release are for [building BombeCam yourself](#building-from-source).
-
 ## Contents
 
-- [Download](#download)
 - [Requirements](#requirements)
 - [Supported cameras](#supported-cameras)
 - [Quick start (Windows)](#quick-start-windows)
