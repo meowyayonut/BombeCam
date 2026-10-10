@@ -16,10 +16,12 @@ func legacyAnnexB(p []byte) []byte {
 		s := (p[2] >> 7) & 1
 		fuType := p[2] & 0x3f
 		if s == 1 {
-			var nalHdr byte = 0x41
-			if fuType == 18 || fuType == 19 || fuType == 20 {
-				nalHdr = 0x65
+			var sliceHdr [16]byte
+			n := copy(sliceHdr[:], []byte{p[1]})
+			if len(p) > 3 {
+				copy(sliceHdr[n:], p[3:])
 			}
+			nalHdr := inferSliceNALHeader(fuType, sliceHdr[:])
 			firstByte := p[1]
 			pkt = make([]byte, 4+2+len(p[3:]))
 			copy(pkt[0:4], startCode)
@@ -107,3 +109,26 @@ func TestNALAssembler_IDRAndOrphanContinuation(t *testing.T) {
 		t.Fatalf("expected SPS, got %x", nals[1])
 	}
 }
+
+func TestNALAssembler_FUType1_ISliceAndPSlice(t *testing.T) {
+	var nals [][]byte
+	a := newNALAssembler(func(n []byte) { nals = append(nals, append([]byte(nil), n...)) })
+
+	// I-slice (0xB8 -> first_mb=0, slice_type=2) even with fuType=1 must be tagged IDR (0x65)
+	a.Push([]byte{49 << 1, 0xB8, 0x80 | 1, 10, 11})
+	a.Push([]byte{49 << 1, 0xB8, 0x40 | 1, 12})
+	// P-slice (0xEB -> first_mb=0, slice_type=0) with fuType=1 must be tagged non-IDR (0x41)
+	a.Push([]byte{49 << 1, 0xEB, 0x80 | 1, 20, 21})
+	a.Push([]byte{49 << 1, 0xEB, 0x40 | 1, 22})
+
+	if len(nals) != 2 {
+		t.Fatalf("got %d NALs, want 2", len(nals))
+	}
+	if nals[0][0] != 0x65 {
+		t.Fatalf("expected IDR header 0x65 for I-slice, got 0x%02x", nals[0][0])
+	}
+	if nals[1][0] != 0x41 {
+		t.Fatalf("expected non-IDR header 0x41 for P-slice, got 0x%02x", nals[1][0])
+	}
+}
+
