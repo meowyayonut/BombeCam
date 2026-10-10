@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.1
 
 **Video & Bitstream Fixes**
 - **H.264 IDR Slice Header Recovery**: Fixed severe video decode failures (`illegal memory management control operation 32`, `deblocking_filter_idc 32 out of range`) on cameras fragmenting NAL units via HEVC-style FU type-49 units. Implemented bitstream inspection (`isISlice` / `readUE`) in `pkg/bridge/nal_assembler.go` and `pkg/bridge/media.go` to reliably identify I-slices (`slice_type % 5 == 2`) and assign `0x65` (IDR).
