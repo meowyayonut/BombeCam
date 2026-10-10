@@ -8,8 +8,9 @@ It can also turn on **Block cloud video** for each camera: rules on your router 
 
 ### Improvements in this Fork
 
-- **H.264 IDR Slice Header & Keyframe Recovery**:
-  - *Upstream issue*: Cameras packaging video in HEVC-style type-49 fragmentation units (FU) often send `fuType = 1` even for I-frames. Upstream hardcoded `fuType == 18|19|20` for IDR slices and defaulted to `0x41` (non-IDR). This caused FFmpeg to parse non-existent reference picture marking syntax, throwing `illegal memory management control operation 32`, `deblocking_filter_idc 32 out of range`, failing macroblock decoding (`MB 0 0`), and breaking HLS (`.m3u8`) manifest generation.
+- **H.264 IDR Slice Header & Keyframe Recovery ("W7" Window Camera Support)**:
+  - *Context & Compatibility*: This fix was specifically developed and verified to get the **"W7" window camera** working with BombeCam.
+  - *Upstream issue*: Cameras packaging video in HEVC-style type-49 fragmentation units (FU)—such as the "W7" window camera—often send `fuType = 1` even for I-frames. Upstream hardcoded `fuType == 18|19|20` for IDR slices and defaulted to `0x41` (non-IDR). This caused FFmpeg to parse non-existent reference picture marking syntax, throwing `illegal memory management control operation 32`, `deblocking_filter_idc 32 out of range`, failing macroblock decoding (`MB 0 0`), and breaking HLS (`.m3u8`) manifest generation.
   - *Fork fix*: Implemented Exp-Golomb bitstream inspection (`isISlice` / `readUE`) in both native and FFmpeg publishing pipelines (`pkg/bridge/nal_assembler.go` and `pkg/bridge/media.go`). I-slices (`slice_type % 5 == 2`) are reliably assigned `0x65` (IDR), restoring smooth video on both RTSP and HLS.
 - **MediaMTX Verification & Port Flexibility**:
   - Fully preserves upstream's pinned MediaMTX 1.9.3 release and verified SHA-256 checksum integrity.
@@ -72,6 +73,7 @@ BombeCam offers live video and sound, talk, night vision, the status light, and 
 | GW30 | GNCC | Outdoor, solar and battery | Yes | Yes |
 | GW40 | GNCC | Outdoor, 4G cellular, solar | Yes | Yes |
 | GW1 | GNCC (W1) | Outdoor, battery | No | Yes |
+| W7 | "W7" window camera (verified working with this fork) | Indoor / Window, plug-in | No | No |
 | WS02 | Wolfang WS02 | Outdoor, 2K | No | No |
 | T1, T1 Pro, GT1, GT1 Pro | GNCC | Outdoor | No | No |
 
