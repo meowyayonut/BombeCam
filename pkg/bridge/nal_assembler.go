@@ -30,10 +30,12 @@ func (a *nalAssembler) Push(p []byte) {
 		fuType := p[2] & 0x3f
 		if start {
 			a.Flush()
-			var nalHdr byte = 0x41 // non-IDR slice
-			if fuType == 18 || fuType == 19 || fuType == 20 {
-				nalHdr = 0x65 // IDR slice
+			var sliceHdr [16]byte
+			n := copy(sliceHdr[:], []byte{p[1]})
+			if len(p) > 3 {
+				copy(sliceHdr[n:], p[3:])
 			}
+			nalHdr := inferSliceNALHeader(fuType, sliceHdr[:])
 			a.cur = make([]byte, 0, 2+len(p[3:])+4096)
 			a.cur = append(a.cur, nalHdr, p[1])
 			a.cur = append(a.cur, p[3:]...)
@@ -72,3 +74,66 @@ func h264NALType(nalu []byte) byte {
 	}
 	return nalu[0] & 0x1f
 }
+
+// inferSliceNALHeader determines the H.264 NAL header byte (0x65 for IDR,
+// 0x41 for non-IDR slice) from fuType and slice header data.
+func inferSliceNALHeader(fuType byte, sliceData []byte) byte {
+	if fuType == 5 || fuType == 18 || fuType == 19 || fuType == 20 {
+		return 0x65
+	}
+	if isISlice(sliceData) {
+		return 0x65
+	}
+	return 0x41
+}
+
+// isISlice parses first_mb_in_slice (ue) and slice_type (ue) from the slice header.
+// Returns true if slice_type is an I-slice (slice_type % 5 == 2).
+func isISlice(data []byte) bool {
+	bitOff := 0
+	_, ok := readUE(data, &bitOff)
+	if !ok {
+		return false
+	}
+	sliceType, ok := readUE(data, &bitOff)
+	if !ok {
+		return false
+	}
+	return (sliceType % 5) == 2
+}
+
+func readUE(data []byte, bitOff *int) (uint32, bool) {
+	leadingZeros := 0
+	for {
+		byteIdx := *bitOff / 8
+		bitIdx := 7 - (*bitOff % 8)
+		if byteIdx >= len(data) {
+			return 0, false
+		}
+		(*bitOff)++
+		bit := (data[byteIdx] >> bitIdx) & 1
+		if bit == 1 {
+			break
+		}
+		leadingZeros++
+		if leadingZeros > 31 {
+			return 0, false
+		}
+	}
+	if leadingZeros == 0 {
+		return 0, true
+	}
+	var val uint32
+	for i := 0; i < leadingZeros; i++ {
+		byteIdx := *bitOff / 8
+		bitIdx := 7 - (*bitOff % 8)
+		if byteIdx >= len(data) {
+			return 0, false
+		}
+		(*bitOff)++
+		bit := uint32((data[byteIdx] >> bitIdx) & 1)
+		val = (val << 1) | bit
+	}
+	return (1 << leadingZeros) - 1 + val, true
+}
+
